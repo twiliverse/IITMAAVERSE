@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IITMAAVERSE - 3D Community Architecture</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #050505;
+      color: #ffffff;
+      user-select: none;
+    }
+    #webgl-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+    .glass {
+      background: rgba(15, 15, 20, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    /* Weverse Mint/Purple Accents */
+    .text-weverse-mint { color: #00d8a1; }
+    .bg-weverse-mint { background-color: #00d8a1; }
+    .border-weverse-mint { border-color: #00d8a1; }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <!-- 3D CANVAS -->
+  <div id="webgl-container"></div>
+
+  <!-- UI OVERLAY -->
+  <div class="relative z-10 w-full h-screen pointer-events-none flex flex-col justify-between">
+    
+    <!-- TOP HEADER -->
+    <header class="p-4 md:p-6 flex justify-between items-start w-full pointer-events-auto">
+      <div class="glass px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-800 to-red-500 flex items-center justify-center font-bold text-lg shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+          🏛️
+        </div>
+        <div>
+          <h1 class="font-extrabold text-xl tracking-tight flex items-center gap-2">
+            IITMAA<span class="text-red-400">VERSE</span>
+          </h1>
+          <p class="text-xs text-gray-400 font-mono flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-weverse-mint animate-pulse"></span>
+            SYSTEM ARCHITECTURE ACTIVE
+          </p>
+        </div>
+      </div>
+
+      <!-- Live Metrics -->
+      <div class="glass px-4 py-3 rounded-2xl hidden md:flex gap-6 items-center text-xs font-mono text-gray-300">
+        <div class="flex flex-col"><span class="text-gray-500">WS CONNECTIONS</span><strong class="text-weverse-mint text-sm">12,402</strong></div>
+        <div class="h-6 w-px bg-white/10"></div>
+        <div class="flex flex-col"><span class="text-gray-500">DB LATENCY</span><strong class="text-purple-400 text-sm">18ms</strong></div>
+      </div>
+    </header>
+
+    <!-- SIDE DYNAMIC FEED PANEL -->
+    <main class="absolute left-4 md:left-6 top-32 bottom-28 w-80 pointer-events-auto flex flex-col gap-4 transition-all duration-500" id="feed-panel">
+      <!-- Dynamic Content Will Inject Here -->
+    </main>
+
+    <!-- BOTTOM WEVERSE-STYLE NAVIGATION -->
+    <footer class="w-full p-4 pointer-events-auto flex justify-center pb-6">
+      <div class="glass px-2 py-2 rounded-3xl flex items-center gap-2 shadow-2xl border-white/10">
+        
+        <button onclick="switchView('overview')" id="btn-overview" class="nav-btn active flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/10 text-white font-semibold text-sm transition-all hover:bg-white/20">
+          <i data-lucide="globe" class="w-4 h-4"></i>
+          <span class="hidden md:block">Overview</span>
+        </button>
+
+        <button onclick="switchView('spotlight')" id="btn-spotlight" class="nav-btn flex items-center gap-2 px-5 py-3 rounded-2xl text-gray-400 font-semibold text-sm transition-all hover:bg-white/10 hover:text-white">
+          <i data-lucide="star" class="w-4 h-4"></i>
+          <span class="hidden md:block">Spotlight Feed</span>
+        </button>
+
+        <button onclick="switchView('quad')" id="btn-quad" class="nav-btn flex items-center gap-2 px-5 py-3 rounded-2xl text-gray-400 font-semibold text-sm transition-all hover:bg-white/10 hover:text-white">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span class="hidden md:block">The Quad</span>
+        </button>
+
+        <button onclick="switchView('lounges')" id="btn-lounges" class="nav-btn flex items-center gap-2 px-5 py-3 rounded-2xl text-gray-400 font-semibold text-sm transition-all hover:bg-white/10 hover:text-white">
+          <i data-lucide="radio" class="w-4 h-4"></i>
+          <span class="hidden md:block">Event Lounges</span>
+        </button>
+
+      </div>
+    </footer>
+  </div>
+
+  <!-- SCRIPT ENGINE -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // --- 1. THREE.JS SCENE SETUP ---
+    const container = document.getElementById('webgl-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Initial Camera Position (Overview)
+    let targetCamPos = new THREE.Vector3(0, 30, 60);
+    let targetLookAt = new THREE.Vector3(0, 0, 0);
+    camera.position.copy(targetCamPos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.2; // Don't go below floor
+
+    // --- 2. LIGHTING & ENVIRONMENT ---
+    const gridHelper = new THREE.GridHelper(200, 100, 0x333333, 0x111111);
+    gridHelper.position.y = -15;
+    scene.add(gridHelper);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+
+    const centerLight = new THREE.PointLight(0xdc2626, 2, 100); // IITM Maroon/Red
+    scene.add(centerLight);
+
+    const quadLight = new THREE.PointLight(0x00d8a1, 1.5, 100); // Weverse Mint
+    quadLight.position.set(20, 10, 20);
+    scene.add(quadLight);
+
+    // --- 3. ARCHITECTURE GEOMETRIES ---
+
+    // A. Spotlight Feed (The Core) - Alumni & Leaders
+    const coreGroup = new THREE.Group();
+    scene.add(coreGroup);
+
+    const coreGeo = new THREE.OctahedronGeometry(5, 1);
+    const coreMat = new THREE.MeshPhysicalMaterial({
+      color: 0xff3333,
+      emissive: 0x990000,
+      emissiveIntensity: 0.5,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.9
+    });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreGroup.add(coreMesh);
+
+    const innerCoreGeo = new THREE.SphereGeometry(3, 32, 32);
+    const innerCoreMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffaaaa, roughness: 0.2 });
+    const innerCore = new THREE.Mesh(innerCoreGeo, innerCoreMat);
+    coreGroup.add(innerCore);
+
+    // B. The Quad (High-Throughput Student Particles)
+    const quadGeo = new THREE.BufferGeometry();
+    const particleCount = 3000;
+    const posArray = new Float32Array(particleCount * 3);
+    const colorsArray = new Float32Array(particleCount * 3);
+
+    for(let i=0; i < particleCount * 3; i+=3) {
+      // Create a massive ring around the core
+      const radius = 15 + Math.random() * 25;
+      const theta = Math.random() * Math.PI * 2;
+      const y = (Math.random() - 0.5) * 10;
+      
+      posArray[i] = Math.cos(theta) * radius;
+      posArray[i+1] = y;
+      posArray[i+2] = Math.sin(theta) * radius;
+
+      // Mix of Weverse Mint and Purple
+      const color = new THREE.Color(Math.random() > 0.5 ? 0x00d8a1 : 0xa855f7);
+      colorsArray[i] = color.r;
+      colorsArray[i+1] = color.g;
+      colorsArray[i+2] = color.b;
+    }
+    quadGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    quadGeo.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
+
+    const quadMat = new THREE.PointsMaterial({
+      size: 0.2,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending
+    });
+    const quadMesh = new THREE.Points(quadGeo, quadMat);
+    scene.add(quadMesh);
+
+    // C. Ephemeral Event Lounges (Floating Nodes)
+    const loungesGroup = new THREE.Group();
+    scene.add(loungesGroup);
+
+    const loungeMat = new THREE.MeshStandardMaterial({
+      color: 0x8b5cf6, // Purple
+      emissive: 0x4c1d95,
+      emissiveIntensity: 0.8,
+      wireframe: true
+    });
+
+    for(let i=0; i<5; i++) {
+      const lGeo = new THREE.IcosahedronGeometry(2, 0);
+      const lounge = new THREE.Mesh(lGeo, loungeMat);
+      
+      const angle = (i / 5) * Math.PI * 2;
+      lounge.position.set(Math.cos(angle) * 35, 15 + Math.sin(i)*5, Math.sin(angle) * 35);
+      
+      // Draw line to core
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), lounge.position]);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.3 });
+      const line = new THREE.Line(lineGeo, lineMat);
+      
+      loungesGroup.add(lounge);
+      loungesGroup.add(line);
+    }
+
+    // --- 4. ANIMATION & RENDER LOOP ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
+
+      // Rotate Elements
+      coreGroup.rotation.y = time * 0.2;
+      coreGroup.rotation.z = Math.sin(time * 0.5) * 0.1;
+      
+      quadMesh.rotation.y = -time * 0.05;
+      loungesGroup.rotation.y = time * 0.1;
+
+      // Float Lounges
+      loungesGroup.children.forEach((child, index) => {
+        if(child.type === 'Mesh') {
+          child.position.y += Math.sin(time * 2 + index) * 0.02;
+          child.rotation.x += 0.01;
+          child.rotation.y += 0.02;
+        }
+      });
+
+      // Lerp Camera for smooth UI Transitions
+      camera.position.lerp(targetCamPos, 0.05);
+      controls.target.lerp(targetLookAt, 0.05);
+      controls.update();
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- 5. UI INTERACTION LOGIC (WEVERSE STYLE) ---
+    const feedPanel = document.getElementById('feed-panel');
+
+    const feedContent = {
+      overview: `
+        <div class="glass p-5 rounded-2xl border-white/10 shadow-xl h-full flex flex-col justify-center">
+          <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mb-4 border border-white/20">
+            <i data-lucide="network" class="w-6 h-6 text-weverse-mint"></i>
+          </div>
+          <h2 class="text-2xl font-bold mb-2">Network Overview</h2>
+          <p class="text-sm text-gray-400 leading-relaxed mb-6">
+            You are viewing the macro-architecture of the IITMAA Village. The inner red core represents high-signal Spotlight posts, the dense particle ring is student P2P traffic, and outer nodes are WebRTC event lounges.
+          </p>
+          <div class="space-y-3">
+            <div class="flex justify-between text-xs border-b border-white/10 pb-2">
+              <span class="text-gray-400">Total Users</span><span class="font-mono text-white">45,291</span>
+            </div>
+            <div class="flex justify-between text-xs border-b border-white/10 pb-2">
+              <span class="text-gray-400">Active Villages</span><span class="font-mono text-white">12</span>
+            </div>
+          </div>
+        </div>
+      `,
+      spotlight: `
+        <div class="text-xs font-bold text-gray-400 tracking-widest mb-2 px-2 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-500"></span> SPOTLIGHT (ALUMNI)
+        </div>
+        
+        <div class="glass p-4 rounded-2xl border-white/10 shadow-xl">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-red-600 to-orange-400 flex items-center justify-center font-bold">P</div>
+            <div>
+              <h4 class="font-bold text-sm flex items-center gap-1">Prof. Kamakoti <i data-lucide="badge-check" class="w-3.5 h-3.5 text-weverse-mint"></i></h4>
+              <p class="text-[10px] text-gray-400 font-mono">Director, IIT Madras • 2h ago</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-200 leading-relaxed">
+            Thrilled to see the Class of '26 utilizing the new tech society frameworks. I'll be hosting an AMA in the Quad lounge tonight regarding Web3 scaling strategies. Drop your questions below!
+          </p>
+          <div class="mt-4 flex gap-4 text-xs text-gray-400">
+            <span class="flex items-center gap-1 hover:text-weverse-mint cursor-pointer"><i data-lucide="heart" class="w-3.5 h-3.5"></i> 1.2k</span>
+            <span class="flex items-center gap-1 hover:text-white cursor-pointer"><i data-lucide="message-square" class="w-3.5 h-3.5"></i> 342</span>
+          </div>
+        </div>
+      `,
+      quad: `
+        <div class="text-xs font-bold text-gray-400 tracking-widest mb-2 px-2 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-weverse-mint animate-pulse"></span> THE QUAD (STUDENTS)
+        </div>
+
+        <div class="glass p-4 rounded-2xl border-weverse-mint/30 shadow-[0_0_15px_rgba(0,216,161,0.1)] mb-3">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-xs">T</div>
+            <div>
+              <h4 class="font-bold text-sm flex items-center gap-1">Twishu (Avyu)</h4>
+              <p class="text-[10px] text-weverse-mint bg-weverse-mint/10 px-1.5 rounded font-mono inline-block">Tech Society Exec</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-200">
+            Just finished deploying the Redis cache for the live stream event! 🚀 Who is joining the Paradox watch party tonight? #DevUpdates
+          </p>
+        </div>
+
+        <div class="glass p-4 rounded-2xl border-white/10 opacity-70">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center font-bold text-[10px]">L</div>
+            <h4 class="font-semibold text-xs">Localhost_Nimish</h4>
+          </div>
+          <p class="text-[11px] text-gray-300">Bro the socket connection is so fast now, insane work on the backend! 🔥</p>
+        </div>
+      `,
+      lounges: `
+        <div class="text-xs font-bold text-gray-400 tracking-widest mb-2 px-2 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> EPHEMERAL LOUNGES
+        </div>
+
+        <div class="glass p-5 rounded-2xl border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.15)] relative overflow-hidden">
+          <!-- Background Audio Wave mock -->
+          <div class="absolute bottom-0 left-0 w-full h-12 flex items-end gap-1 px-4 pb-2 opacity-20">
+            <div class="w-full h-full bg-gradient-to-t from-purple-500 to-transparent"></div>
+          </div>
+
+          <div class="flex justify-between items-start mb-4 relative z-10">
+            <div>
+              <h3 class="font-bold text-lg text-white mb-1">Paradox '26 Sync</h3>
+              <p class="text-xs text-gray-400">Live WebRTC Audio/Chat Lounge</p>
+            </div>
+            <span class="bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded animate-pulse">LIVE</span>
+          </div>
+          
+          <div class="flex -space-x-2 mb-4 relative z-10">
+            <div class="w-8 h-8 rounded-full bg-blue-500 border-2 border-[#050505]"></div>
+            <div class="w-8 h-8 rounded-full bg-green-500 border-2 border-[#050505]"></div>
+            <div class="w-8 h-8 rounded-full bg-yellow-500 border-2 border-[#050505]"></div>
+            <div class="w-8 h-8 rounded-full bg-gray-700 border-2 border-[#050505] flex items-center justify-center text-[10px]">+1.2k</div>
+          </div>
+
+          <button class="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition relative z-10">
+            Join Lounge
+          </button>
+        </div>
+      `
+    };
+
+    // Initial Load
+    feedPanel.innerHTML = feedContent.overview;
+    lucide.createIcons();
+
+    window.switchView = function(view) {
+      // 1. Update UI Buttons
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('bg-white/10', 'text-white', 'active');
+        btn.classList.add('text-gray-400');
+      });
+      const activeBtn = document.getElementById(`btn-${view}`);
+      activeBtn.classList.add('bg-white/10', 'text-white', 'active');
+      activeBtn.classList.remove('text-gray-400');
+
+      // 2. Animate Panel Out & In
+      feedPanel.style.opacity = 0;
+      feedPanel.style.transform = 'translateX(-20px)';
+      
+      setTimeout(() => {
+        feedPanel.innerHTML = feedContent[view];
+        lucide.createIcons();
+        feedPanel.style.opacity = 1;
+        feedPanel.style.transform = 'translateX(0)';
+      }, 250);
+
+      // 3. Move 3D Camera based on View
+      if(view === 'overview') {
+        targetCamPos.set(0, 30, 60);
+        targetLookAt.set(0, 0, 0);
+      } 
+      else if (view === 'spotlight') {
+        // Zoom into the Red Core
+        targetCamPos.set(0, 5, 15);
+        targetLookAt.set(0, 0, 0);
+      }
+      else if (view === 'quad') {
+        // Look from inside the particle ring
+        targetCamPos.set(15, 8, 30);
+        targetLookAt.set(10, 0, -10);
+      }
+      else if (view === 'lounges') {
+        // Focus on a floating node
+        const targetNode = loungesGroup.children[0].position; // grab first lounge
+        targetCamPos.set(targetNode.x + 10, targetNode.y + 5, targetNode.z + 10);
+        targetLookAt.copy(targetNode);
+      }
+    }
+
+    // Handle Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
